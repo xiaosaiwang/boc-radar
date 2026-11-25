@@ -4,6 +4,7 @@ from datetime import datetime,date,timezone,timedelta
 from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
+from supplement import supplement
 ROOT=Path(__file__).resolve().parents[1]; DATA=ROOT/'data'
 BASE='https://www.boc.cn/sourcedb/srfd6_2024/index.html'
 def load(name,default):
@@ -68,6 +69,8 @@ def main():
   time.sleep(0.8)
  if not count:raise RuntimeError('没有获取数据；保留旧快照。'+str(errors))
  if pending:errors.append('分页达到200页上限')
+ report=supplement(history,meta)
+ save('metadata.json',meta)
  products=[]
  stale_count=0
  today=datetime.now(timezone(timedelta(hours=8))).date()
@@ -84,6 +87,6 @@ def main():
   elif '机构专属' in name or '对公专属' in name: hints['audienceHint']='名称含机构/对公专属'
   elif '测试' in name: hints['audienceHint']='名称含测试'
   products.append({'code':code,'name':name,**hints,**(metrics(h) if h else {}),**meta.get(code,{})})
- save('history.json',history);save('names.json',names);save('products.json',{'updated':datetime.now(timezone.utc).isoformat(),'source':BASE,'pages':len(seen),'rows':count,'errors':errors,'staleExcluded':stale_count,'products':products})
+ save('history.json',history);save('names.json',names);save('products.json',{'updated':datetime.now(timezone.utc).isoformat(),'source':BASE,'pages':len(seen),'rows':count,'errors':errors,'staleExcluded':stale_count,'supplement':report,'products':products})
  print(f'Collected {count} rows from {len(seen)} pages; excluded {stale_count} stale products; published {len(products)} products; errors: {errors}')
 if __name__=='__main__':main()

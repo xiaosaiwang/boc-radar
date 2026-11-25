@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/update.yml'
       - 'scripts/update.py'
+      - 'scripts/supplement.py'
       - 'index.html'
   schedule:
     - cron: '17 2 * * *'
@@ -28,7 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install requests beautifulsoup4
+      - run: pip install requests beautifulsoup4 playwright
+      - run: python -m playwright install chromium
       - run: python scripts/update.py
       - run: |
           git config user.name 'nav-bot'
