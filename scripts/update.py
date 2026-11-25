@@ -17,12 +17,16 @@ def parse(html,url):
  soup=BeautifulSoup(html,'html.parser'); out=[]
  for tr in soup.select('tr'):
   c=[x.get_text(' ',strip=True) for x in tr.select('td')]
-  if len(c)<8 or not re.fullmatch(r'[A-Za-z0-9]{5,35}',c[0]):continue
-  m=re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}',c[7]); v=number(c[2]); a=number(c[3])
+  if len(c)<8 or not re.fullmatch(r'[A-Za-z0-9]{4,40}',c[0]):continue
+  m=re.search(r'\d{4}[-/.]\d{1,2}[-/.]\d{1,2}',c[7]); v=number(c[2]); a=number(c[3])
   if not m or v is None or v<=0:continue
-  day=datetime.strptime(m.group().replace('-','/'),'%Y/%m/%d').date().isoformat()
+  day=datetime.strptime(m.group().replace('-','/').replace('.','/'),'%Y/%m/%d').date().isoformat()
   out.append((c[0],c[1],day,v,a,number(c[6])))
  links={urljoin(url,x.get('href','')) for x in soup.select('a[href]') if re.search(r'(?:^|/)index(?:_\d+)?\.html$',x['href'])}
+ total=re.search(r'共\s*(\d+)\s*页',soup.get_text(' ',strip=True))
+ if total and url==BASE:
+  n=int(total.group(1))
+  links.update(urljoin(BASE,f'index_{i}.html') for i in range(1,min(n,200)))
  return out,{x for x in links if x.startswith(BASE.rsplit('/',1)[0]+'/')}
 def metrics(hist):
  h=sorted(hist.items()); last,p=h[-1]; result={'date':last,'nav':p[0],'daily':None,'gap':None,'dd':None,'historyDays':(date.fromisoformat(last)-date.fromisoformat(h[0][0])).days}
@@ -58,16 +62,23 @@ def main():
    r=session.get(url,timeout=25);r.raise_for_status(); r.encoding=r.apparent_encoding; rows,links=parse(r.text,url)
    if not rows:raise ValueError('未识别净值表')
    for code,name,day,v,a,g in rows:
-    names[code]=name; history.setdefault(code,{})[day]=[v,a,g];count+=1
-   pending.extend(sorted(links-seen-set(pending)))
+    names.setdefault(code,name); history.setdefault(code,{})[day]=[v,a,g];count+=1
+   pending.extend(sorted(links-seen-set(pending),key=lambda x:int(re.search(r'_(\d+)\.html',x).group(1)) if re.search(r'_(\d+)\.html',x) else 0))
   except Exception as e:errors.append(f'{url}: {e}')
-  time.sleep(0.5)
+  time.sleep(0.8)
  if not count:raise RuntimeError('没有获取数据；保留旧快照。'+str(errors))
  if pending:errors.append('分页达到200页上限')
  products=[]
  for code in sorted(set(history)|set(meta)):
   h=history.get(code,{})
-  products.append({'code':code,'name':names.get(code,code),**(metrics(h) if h else {}),**meta.get(code,{})})
+  name=names.get(code,code)
+  hints={}
+  m=re.search(r'(\d+)\s*天(?:最短|最低)?持有|(?:最短|最低)持有(?:期)?\s*(\d+)\s*天',name)
+  if m: hints['termHint']=int(m.group(1) or m.group(2))
+  if '私募' in name: hints['audienceHint']='名称含私募'
+  elif '机构专属' in name or '对公专属' in name: hints['audienceHint']='名称含机构/对公专属'
+  elif '测试' in name: hints['audienceHint']='名称含测试'
+  products.append({'code':code,'name':name,**hints,**(metrics(h) if h else {}),**meta.get(code,{})})
  save('history.json',history);save('names.json',names);save('products.json',{'updated':datetime.now(timezone.utc).isoformat(),'source':BASE,'pages':len(seen),'rows':count,'errors':errors,'products':products})
  print(f'Collected {count} rows from {len(seen)} pages; errors: {errors}')
 if __name__=='__main__':main()

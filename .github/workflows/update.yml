@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - '.github/workflows/update.yml'
+      - 'scripts/update.py'
+      - 'index.html'
   schedule:
     - cron: '17 2 * * *'
 permissions:
@@ -17,7 +19,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
