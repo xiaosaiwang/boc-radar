@@ -1,6 +1,6 @@
 import json,re,time
 from pathlib import Path
-from datetime import datetime,date,timezone
+from datetime import datetime,date,timezone,timedelta
 from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
@@ -69,8 +69,13 @@ def main():
  if not count:raise RuntimeError('没有获取数据；保留旧快照。'+str(errors))
  if pending:errors.append('分页达到200页上限')
  products=[]
+ stale_count=0
+ today=datetime.now(timezone(timedelta(hours=8))).date()
  for code in sorted(set(history)|set(meta)):
   h=history.get(code,{})
+  if h and (today-date.fromisoformat(max(h))).days>30:
+   stale_count+=1
+   continue
   name=names.get(code,code)
   hints={}
   m=re.search(r'(\d+)\s*天(?:最短|最低)?持有|(?:最短|最低)持有(?:期)?\s*(\d+)\s*天',name)
@@ -79,6 +84,6 @@ def main():
   elif '机构专属' in name or '对公专属' in name: hints['audienceHint']='名称含机构/对公专属'
   elif '测试' in name: hints['audienceHint']='名称含测试'
   products.append({'code':code,'name':name,**hints,**(metrics(h) if h else {}),**meta.get(code,{})})
- save('history.json',history);save('names.json',names);save('products.json',{'updated':datetime.now(timezone.utc).isoformat(),'source':BASE,'pages':len(seen),'rows':count,'errors':errors,'products':products})
- print(f'Collected {count} rows from {len(seen)} pages; errors: {errors}')
+ save('history.json',history);save('names.json',names);save('products.json',{'updated':datetime.now(timezone.utc).isoformat(),'source':BASE,'pages':len(seen),'rows':count,'errors':errors,'staleExcluded':stale_count,'products':products})
+ print(f'Collected {count} rows from {len(seen)} pages; excluded {stale_count} stale products; published {len(products)} products; errors: {errors}')
 if __name__=='__main__':main()
