@@ -1,10 +1,14 @@
 name: Daily NAV
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/update.yml'
   schedule:
     - cron: '17 2 * * *'
 permissions:
   contents: write
+  actions: read
   pages: write
   id-token: write
 concurrency:
@@ -37,5 +41,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+      - name: Wait for artifact metadata
+        run: sleep 20
       - uses: actions/deploy-pages@v4
         id: deployment
